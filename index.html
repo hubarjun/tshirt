@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Three.js Specific Texture Application</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.138.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.138.0/examples/jsm/"
+        }
+      }
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <input type="file" id="imageUpload" accept="image/*" />
+
+    <script type="module">
+      import * as THREE from "three";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { TextureLoader } from "three";
+
+      // Scene setup
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xbcbfaa);
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Orbit controls
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.screenSpacePanning = false;
+
+      // Ambient light
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+
+      // Directional light
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(5, 10, 7.5);
+      scene.add(directionalLight);
+      // Load the GLTF model
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.load(
+        "./assets/finalmodel.gltf",
+        function (gltf) {
+          const model = gltf.scene;
+          model.scale.set(1, 1, 1);
+          scene.add(model);
+
+          // Load different materials
+          const textureLoader = new TextureLoader();
+
+          // Example: Assign different materials based on mesh names
+          const fileInput = document.getElementById("imageUpload");
+          fileInput.addEventListener("change", (event) => {
+            const file = event.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = function (e) {
+                const textureLoader = new THREE.TextureLoader();
+                const texture = textureLoader.load(
+                  e.target.result,
+                  (texture) => {
+                    model.traverse((child) => {
+                      if (child.isMesh && child.name === "TshirtFront") {
+                        child.material = new THREE.MeshStandardMaterial({
+                          map: texture,
+                        });
+                        //rotate
+                        texture.rotation = Math.PI;
+                        texture.wrapS = THREE.RepeatWrapping;
+                        texture.repeat.x = -1;
+                        texture.center.set(0.5, 0.5);
+                      }
+                    });
+                  }
+                );
+              };
+              reader.readAsDataURL(file);
+            }
+          });
+          model.traverse((child) => {
+            if (child.isMesh) {
+              let material;
+              if (child.name === "TshirtBack") {
+                material = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // Red color for back
+              } else if (child.name === "SleeveLeft") {
+                material = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); // Green color for left sleeve
+              }
+              // Add more conditions as needed for other parts
+
+              if (material) {
+                child.material = material;
+              }
+            }
+          });
+
+          // Adjust camera position to fit the model
+          const box = new THREE.Box3().setFromObject(model);
+          const center = box.getCenter(new THREE.Vector3());
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const fov = camera.fov * (Math.PI / 180);
+          let cameraZ = Math.abs((maxDim / 2) * Math.tan(fov * 2));
+
+          cameraZ *= 2; // Factor to move the camera further away
+
+          // Set the camera position to show the front side view
+          camera.position.set(
+            center.x,
+            center.z + center.y,
+            center.y + center.z
+          );
+          camera.lookAt(new THREE.Vector3(center.x, center.y, center.z));
+
+          // Update controls
+          controls.target.set(center.x, center.y, center.z);
+          controls.update();
+        },
+        undefined,
+        function (error) {
+          console.error("Error loading GLTF model:", error);
+        }
+      );
+
+      // Resize handler
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Render loop
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+    </script>
+  </body>
+</html>
